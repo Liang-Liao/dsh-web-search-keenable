@@ -42,7 +42,7 @@ const KEENABLE_MAX_SNIPPET_LENGTH = 10000;
 /** Keenable's accepted `max_results` upper bound; the seam still caps on return. */
 const KEENABLE_MAX_RESULTS = 50;
 /** Attribution header sent on every request. */
-const USER_AGENT = "dsh-web-search-keenable/1.0.4";
+const USER_AGENT = "dsh-web-search-keenable/1.0.5";
 /** Launch-environment variable naming the Keenable API key credential. */
 const KEENABLE_API_KEY_ENV = "KEENABLE_API_KEY";
 /**

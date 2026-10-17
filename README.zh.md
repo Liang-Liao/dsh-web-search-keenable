@@ -57,6 +57,10 @@ kind: "package-reference"
 
 上表每个字段都是易变的（volatile）：对 profile 配置的修改在下一次调用即生效——loader 会把新值写入运行中的插件，而不是重启它——因此端点、模式与上限的变更不会中断会话。API 密钥同样按操作保持新鲜：配置字面量 `apiKey`、凭据服务的写入或 `apiKeyEnv` 的变更，都会在下一次调用前生效，无需重启。
 
+### 在插件管理页配置
+
+1.0.5 起，插件管理页中本 bundle 的行带有配置入口——点击行标题即进入行的配置页。在该页面中，API 密钥经凭据服务管理（不写入设置文件），上表中除 `apiKeyEnv` 外的字段均可编辑：常用字段直接展示，不常用的字段（`appTitle`、`site`、`snippetMaxLength`、`maxChars`）收在默认折叠的“高级设置”组内；每个字段在提示文字中标注默认值，并带覆盖状态与恢复默认操作。保存后值写入 profile 配置；由于所有字段都是易变的，下一次调用即使用新值，无需重启。配置入口仅在插件加载后出现；`apiKeyEnv` 仍为配置文件字段。
+
 ### 搜索返回什么
 
 每个 Keenable 搜索结果映射为一个 `WebSearchSource`：`url`、`title`、`snippet` 与 `description` 中第一个非空内容作为 `snippet`、`published_at` 作为 `publishedAt`；两者都没有便携摘要的结果会被丢弃。请求的 `maxResults` 优先于配置的 `maxResults` 默认值，并作为成本与延迟优化发送给 Keenable——最终上限由服务在返回时截断并标记。Keenable 不返回生成的回答，因此结果不带 `content`。

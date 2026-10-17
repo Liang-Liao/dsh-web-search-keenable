@@ -57,6 +57,10 @@ Load the web service and the provider; the API key resolves through the `KEENABL
 
 Every field above is volatile: a change committed to the profile config takes effect on the next call — the loader writes it into the running plugin instead of restarting it — so endpoint, mode, and limit changes never interrupt a session. The same per-operation freshness covers the API key: a literal `apiKey`, a credentials-service write, or a change to `apiKeyEnv` reaches the next call without a restart.
 
+### Configure in the Plugins page
+
+Since 1.0.5 the bundle's row on the Plugins page carries a configure control — the row title opens the row's page. There the API key is managed through the credentials service (it is never written into the settings file), and every field in the table above except `apiKeyEnv` is editable: the everyday fields stay open, the less-used ones (`appTitle`, `site`, `snippetMaxLength`, `maxChars`) sit under a collapsed "Advanced settings" group, and each field shows its default in the hint, its override state, and a reset action. Saving writes the values into the profile config, and because every field is volatile the next call uses them without a restart. The control appears only while the plugin is loaded; `apiKeyEnv` remains a config-file field.
+
 ### What a search returns
 
 Each Keenable result maps to a `WebSearchSource`: `url`, `title`, the first non-blank of `snippet` then `description` as `snippet`, and `published_at` as `publishedAt`; a result with neither field has no portable snippet and is dropped. A request's `maxResults` wins over the configured `maxResults` default and is sent to Keenable as a cost and latency optimization — the final bound is enforced by the service, which truncates and flags. Keenable returns no generated answer, so the result carries no `content`.
