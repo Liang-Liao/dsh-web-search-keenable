@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-With `dsh-web-search-keenable`, the harness searches and reads the web through [Keenable](https://keenable.ai): ranked results with portable snippets and publication dates from `/v1/search`, and page content as markdown from `/v1/fetch`. Choose it when a deployment wants Keenable's `pro`/`realtime` retrieval — with a `KEENABLE_API_KEY` both call the keyed endpoints, and without one they transparently fall back to the keyless public endpoints. Keenable returns no generated answer, so search results carry no `content` — only citeable sources. A result with neither a non-blank `snippet` nor a non-blank `description` is dropped, so a call can return fewer sources than requested. The model-facing `web_search` and `web_fetch` tools live in `dsh-tool-web`.
+With `dsh-web-search-keenable`, the harness searches and reads the web through [Keenable](https://keenable.ai): ranked results with portable snippets and publication dates from `/v1/search`, and page content as markdown from `/v1/fetch`. Choose it when a deployment wants Keenable's `pro`/`realtime` retrieval — with an API key (a literal `apiKey`, the `KEENABLE_API_KEY` credential, or `$KEENABLE_API_KEY` in the launch environment) both call the keyed endpoints, and without one they transparently fall back to the keyless public endpoints. Keenable returns no generated answer, so search results carry no `content` — only citeable sources. A result with neither a non-blank `snippet` nor a non-blank `description` is dropped, so a call can return fewer sources than requested. The model-facing `web_search` and `web_fetch` tools live in `dsh-tool-web`.
 
 ## Table of Contents
 
@@ -27,11 +27,11 @@ Mount the provider in a composition that already loads the web service; it regis
 
 ### When to choose it
 
-Choose this backend when a deployment holds a Keenable API key and wants Keenable's ranked retrieval and markdown extraction under one credential. Both capabilities are keyless out of the box: without a key they call `/v1/search/public` and `/v1/fetch/public` (rate limited per IP, no credits), and with `KEENABLE_API_KEY` they call `/v1/search` and `/v1/fetch`. Either capability is unavailable — and every call fails with a structured error — when neither a key nor an application title is configured, or when the endpoint base does not parse.
+Choose this backend when a deployment holds a Keenable API key and wants Keenable's ranked retrieval and markdown extraction under one credential. Both capabilities are keyless out of the box: without a key they call `/v1/search/public` and `/v1/fetch/public` (rate limited per IP, no credits), and with a key they call `/v1/search` and `/v1/fetch`. The key resolves per operation — a literal `apiKey` first, then the `KEENABLE_API_KEY` credential reference (credentials service, then launch environment) — so a key stored after startup reaches the next call without a restart. Either capability is unavailable — and every call fails with a structured error — when neither a key nor an application title is configured, or when the endpoint base does not parse.
 
 ### Minimal configuration
 
-Load the web service and the provider; the API key falls back to `$KEENABLE_API_KEY` from the launch environment, and all other settings have safe defaults.
+Load the web service and the provider; the API key resolves through the `KEENABLE_API_KEY` credential reference (credentials service first, then the launch environment), and all other settings have safe defaults.
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
@@ -42,7 +42,8 @@ Load the web service and the provider; the API key falls back to `$KEENABLE_API_
 
 | Field | Default | Meaning |
 |---|---|---|
-| `apiKey` | `$KEENABLE_API_KEY` | Keenable API key; empty or absent uses the keyless public endpoints, which then require `appTitle` |
+| `apiKey` | (unset) | Keenable API key; a non-empty literal wins over the credential reference. When no key resolves, the keyless public endpoints are used, which then require `appTitle` |
+| `apiKeyEnv` | `KEENABLE_API_KEY` | Name of the credential reference the API key resolves through when `apiKey` is unset — the credentials service first, then the launch environment |
 | `baseURL` | `https://api.keenable.ai` | Endpoint base; `/v1/search` or `/v1/fetch` (keyed) and their `/public` twins (keyless) are appended. An unparseable value makes both providers unavailable |
 | `mode` | `pro` | Search retrieval mode sent as Keenable's `mode`: `pro` (deeper retrieval) or `realtime` (fastest) |
 | `appTitle` | `$KEENABLE_APP_TITLE`, else `deepseek-harness` | Application name sent as the `X-Keenable-Title` header on keyless calls; Keenable rejects the public endpoints without it |
@@ -86,7 +87,7 @@ The package is a thin adapter over Keenable's API with three deliberate rules:
 
 | File | Role |
 |---|---|
-| `index.js` | Plugin entry: config schema, environment fallback, provider registration, and both providers in one build-free module |
+| `index.js` | Plugin entry: config schema, credential resolution, provider registration, and both providers in one build-free module |
 
 ### Request and mapping flow
 
@@ -115,5 +116,5 @@ These limits define when the provider is a poor fit. They are current package co
 - **Fetch surface is a subset of the local fetcher** — no redirect following, byte caps, charset decoding, or private-address policy: Keenable performs the retrieval, so those checks belong to Keenable, and a non-200 origin page surfaces as a provider error rather than a status-coded result.
 - **Fetch truncation is provider-enforced** — `content` is sliced to `maxChars` because Keenable's `max_chars` is a soft cap; `truncated` is exact, not inferred.
 - **Only `mode`/`site`/`maxResults`/`snippetMaxLength`/`maxChars`/`live` are exposed** — Keenable's date filters (`published_after`, `acquired_before`, …), point-in-time `query_time`, and the fetch `prompt` extraction instruction wait on provider-neutral service fields in the web seam.
-- **The keyless public endpoints are a shared pool** — without an API key, calls are rate limited per IP (1,000 requests/hour, 10 requests/second) and carry no usage metadata; set `KEENABLE_API_KEY` for production volume.
+- **The keyless public endpoints are a shared pool** — without an API key, calls are rate limited per IP (1,000 requests/hour, 10 requests/second) and carry no usage metadata; store `KEENABLE_API_KEY` for production volume.
 - **Abort classification is error-shape-based** — only a `DOMException` named `AbortError` maps to `WEB_ABORTED`; an abort carrying a custom reason (such as `dsh-timeout`'s `TimeoutReason`) surfaces as `WEB_PROVIDER_ERROR`.

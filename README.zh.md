@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-web-search-keenable` 让 harness 通过 [Keenable](https://keenable.ai) 搜索并读取网页：`/v1/search` 返回带可移植摘要与发布时间的排序结果，`/v1/fetch` 返回页面的 markdown 内容。适合希望把两项能力收敛到同一套 Keenable 凭据的部署：配置了 `KEENABLE_API_KEY` 时走带鉴权端点，没有密钥时自动回退到免密钥公共端点。Keenable 不返回生成的回答，因此搜索结果只包含可引用的来源，没有 `content`。既无有效 `snippet` 也无有效 `description` 的搜索结果会被丢弃，因此一次搜索返回的来源数可能少于请求数。面向模型的 `web_search` 与 `web_fetch` 工具由 `dsh-tool-web` 提供。
+`dsh-web-search-keenable` 让 harness 通过 [Keenable](https://keenable.ai) 搜索并读取网页：`/v1/search` 返回带可移植摘要与发布时间的排序结果，`/v1/fetch` 返回页面的 markdown 内容。适合希望把两项能力收敛到同一套 Keenable 凭据的部署：配置了 API 密钥（配置字面量、`KEENABLE_API_KEY` 凭据或启动环境 `$KEENABLE_API_KEY`）时走带鉴权端点，没有密钥时自动回退到免密钥公共端点。Keenable 不返回生成的回答，因此搜索结果只包含可引用的来源，没有 `content`。既无有效 `snippet` 也无有效 `description` 的搜索结果会被丢弃，因此一次搜索返回的来源数可能少于请求数。面向模型的 `web_search` 与 `web_fetch` 工具由 `dsh-tool-web` 提供。
 
 ## 目录
 
@@ -27,11 +27,11 @@ kind: "package-reference"
 
 ### 何时选择它
 
-当部署希望用一套 Keenable 凭据同时获得排序检索与 markdown 提取时选择该后端。两项能力开箱即无密钥：没有密钥时调用 `/v1/search/public` 与 `/v1/fetch/public`（按 IP 限流、不消耗额度），有 `KEENABLE_API_KEY` 时调用 `/v1/search` 与 `/v1/fetch`。当密钥与应用名都未配置、或端点基址无法解析时，对应能力不可用——此时每次调用都会失败并返回结构化错误。
+当部署希望用一套 Keenable 凭据同时获得排序检索与 markdown 提取时选择该后端。两项能力开箱即无密钥：没有密钥时调用 `/v1/search/public` 与 `/v1/fetch/public`（按 IP 限流、不消耗额度），有密钥时调用 `/v1/search` 与 `/v1/fetch`。密钥按操作解析——先取配置字面量 `apiKey`，再解析 `KEENABLE_API_KEY` 凭据引用（凭据服务优先，其次启动环境）——因此启动后存入的密钥在下一次调用即生效，无需重启。当密钥与应用名都未配置、或端点基址无法解析时，对应能力不可用——此时每次调用都会失败并返回结构化错误。
 
 ### 最小配置
 
-加载 web 服务与本提供方；API 密钥回退到启动环境中的 `$KEENABLE_API_KEY`，其余设置均有安全默认值。
+加载 web 服务与本提供方；API 密钥经 `KEENABLE_API_KEY` 凭据引用解析（凭据服务优先，其次启动环境），其余设置均有安全默认值。
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
@@ -42,7 +42,8 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `apiKey` | `$KEENABLE_API_KEY` | Keenable API 密钥；为空或缺失时使用免密钥公共端点，此时需要 `appTitle` |
+| `apiKey` | （不设置） | Keenable API 密钥；非空字面量优先于凭据引用。无任何密钥时使用免密钥公共端点，此时需要 `appTitle` |
+| `apiKeyEnv` | `KEENABLE_API_KEY` | `apiKey` 未设置时解析密钥所用的凭据引用名——凭据服务优先，其次启动环境 |
 | `baseURL` | `https://api.keenable.ai` | 端点基址；追加 `/v1/search` 或 `/v1/fetch`（带密钥）及其 `/public` 孪生端点（无密钥）。无法解析的值使两个提供方都不可用 |
 | `mode` | `pro` | 搜索检索模式，作为 Keenable 的 `mode` 发送：`pro`（更深检索）或 `realtime`（最快） |
 | `appTitle` | `$KEENABLE_APP_TITLE`，否则 `deepseek-harness` | 免密钥调用时 `X-Keenable-Title` 头的应用名；公共端点缺少它会被拒绝 |
@@ -86,7 +87,7 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| `index.js` | 插件入口：配置模式、环境变量回退、提供方注册，以及两个提供方的完整实现（单文件、无需构建） |
+| `index.js` | 插件入口：配置模式、凭据解析、提供方注册，以及两个提供方的完整实现（单文件、无需构建） |
 
 ### 请求与映射流程
 
@@ -115,5 +116,5 @@ kind: "package-reference"
 - **抓取能力是本地抓取器的子集**——不跟随重定向、没有字节上限、字符集解码与私网地址策略：检索由 Keenable 执行，这些检查归属 Keenable；源站非 200 页面会以提供方错误呈现，而不是带状态码的结果。
 - **抓取截断由提供方强制执行**——`content` 会被裁到 `maxChars`（Keenable 的 `max_chars` 只是软上限），`truncated` 是精确值而非推断值。
 - **仅暴露 `mode`/`site`/`maxResults`/`snippetMaxLength`/`maxChars`/`live`**——Keenable 的日期过滤（`published_after`、`acquired_before` 等）、时点检索 `query_time` 与抓取的 `prompt` 提取指令，需要 web seam 先提供提供方中立的服务字段。
-- **免密钥公共端点是共享池**——没有 API 密钥时调用按 IP 限流（每小时 1,000 次、每秒 10 次）且不带用量元数据；生产用量请设置 `KEENABLE_API_KEY`。
+- **免密钥公共端点是共享池**——没有 API 密钥时调用按 IP 限流（每小时 1,000 次、每秒 10 次）且不带用量元数据；生产用量请存入 `KEENABLE_API_KEY`（凭据服务或启动环境）。
 - **中止分类基于错误形状**——只有名为 `AbortError` 的 `DOMException` 映射为 `WEB_ABORTED`；携带自定义原因的中止（如 `dsh-timeout` 的 `TimeoutReason`）会以 `WEB_PROVIDER_ERROR` 暴露。

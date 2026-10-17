@@ -1,3 +1,4 @@
+import { credentialRef, isCredentialRefName } from "@deepseek-ai/dsh-credentials";
 import { launchEnvironmentOf } from "@deepseek-ai/dsh-launch-environment";
 import z from "@deepseek-ai/schemastery";
 import { WebError } from "@deepseek-ai/dsh-web";
@@ -41,7 +42,9 @@ const KEENABLE_MAX_SNIPPET_LENGTH = 10000;
 /** Keenable's accepted `max_results` upper bound; the seam still caps on return. */
 const KEENABLE_MAX_RESULTS = 50;
 /** Attribution header sent on every request. */
-const USER_AGENT = "dsh-web-search-keenable/1.0.2";
+const USER_AGENT = "dsh-web-search-keenable/1.0.3";
+/** Launch-environment variable naming the Keenable API key credential. */
+const KEENABLE_API_KEY_ENV = "KEENABLE_API_KEY";
 /**
  * Return the first non-blank string among `values`, or `undefined`.
  *
@@ -168,7 +171,8 @@ var KeenableSearchProvider = class {
 		return this.hasCredentials() && isValidBaseUrl(this.options.baseURL) && (this.options.maxResults === void 0 || isPositiveInteger(this.options.maxResults)) && (this.options.snippetMaxLength === void 0 || isValidSnippetLength(this.options.snippetMaxLength));
 	}
 	async search(request, signal) {
-		const keyed = this.options.apiKey.length > 0;
+		const apiKey = await this.options.resolveApiKey();
+		const keyed = apiKey !== void 0 && apiKey.length > 0;
 		const requested = request.maxResults ?? this.options.maxResults;
 		const maxResults = requested === void 0 ? void 0 : clampResultCount(requested);
 		let response;
@@ -176,7 +180,7 @@ var KeenableSearchProvider = class {
 			response = await fetch(`${this.options.baseURL}${keyed ? KEENABLE_SEARCH_PATH : KEENABLE_PUBLIC_SEARCH_PATH}`, {
 				method: "POST",
 				redirect: "error",
-				headers: this.headers(keyed),
+				headers: this.headers(keyed, apiKey),
 				body: JSON.stringify({
 					query: request.query,
 					mode: this.options.mode,
@@ -202,13 +206,12 @@ var KeenableSearchProvider = class {
 	}
 	/** True when a keyed or keyless (titled) call can be sent. */
 	hasCredentials() {
-		const keyed = this.options.apiKey.length > 0;
-		return keyed || this.options.appTitle.length > 0;
+		return this.options.apiKeyState.value.length > 0 || this.options.appTitle.length > 0;
 	}
 	/** Request headers for the keyed or keyless operation. */
-	headers(keyed) {
+	headers(keyed, apiKey) {
 		return {
-			...keyed ? { "x-api-key": this.options.apiKey } : { "x-keenable-title": this.options.appTitle },
+			...keyed ? { "x-api-key": apiKey } : { "x-keenable-title": this.options.appTitle },
 			"content-type": "application/json",
 			accept: "application/json",
 			"user-agent": USER_AGENT
@@ -223,13 +226,13 @@ var KeenableFetchProvider = class {
 		this.options = options;
 	}
 	available() {
-		const keyed = this.options.apiKey.length > 0;
-		if (!keyed && this.options.appTitle.length === 0) return false;
+		if (this.options.apiKeyState.value.length === 0 && this.options.appTitle.length === 0) return false;
 		return isValidBaseUrl(this.options.baseURL) && isPositiveInteger(this.options.maxChars);
 	}
 	async fetch(request, signal) {
 		const target = parseFetchUrl(request.url);
-		const keyed = this.options.apiKey.length > 0;
+		const apiKey = await this.options.resolveApiKey();
+		const keyed = apiKey !== void 0 && apiKey.length > 0;
 		const url = new URL(`${this.options.baseURL}${keyed ? KEENABLE_FETCH_PATH : KEENABLE_PUBLIC_FETCH_PATH}`);
 		url.searchParams.set("url", target.toString());
 		url.searchParams.set("max_chars", String(this.options.maxChars));
@@ -240,7 +243,7 @@ var KeenableFetchProvider = class {
 				method: "GET",
 				redirect: "error",
 				headers: {
-					...keyed ? { "x-api-key": this.options.apiKey } : { "x-keenable-title": this.options.appTitle },
+					...keyed ? { "x-api-key": apiKey } : { "x-keenable-title": this.options.appTitle },
 					accept: "application/json",
 					"user-agent": USER_AGENT
 				},
@@ -282,9 +285,50 @@ function isAbortError(error) {
 	return error instanceof DOMException && error.name === "AbortError";
 }
 /**
+ * Create the API-key access both providers share.
+ *
+ * A non-empty literal `apiKey` wins; otherwise the key resolves through the
+ * credentials service — the provider-managed store first, then ambient
+ * fallbacks such as the process environment — or, when no credentials service
+ * is mounted, straight from the launch environment. Resolution is
+ * asynchronous, so a synchronous snapshot seeded from the literal key and the
+ * environment answers `available()`, and every committed credential write
+ * refreshes that snapshot through the seam's update event.
+ *
+ * @param ctx - plugin context supplying the credential and environment planes.
+ * @param options - the literal key and the credential reference name.
+ * @returns the per-operation resolver and the synchronous snapshot.
+ */
+function createApiKeyAccess(ctx, options) {
+	const ref = isCredentialRefName(options.envName) ? credentialRef(options.envName) : void 0;
+	const resolveApiKey = async () => {
+		if (options.literal !== void 0) return options.literal;
+		const credentials = ctx.get("credentials");
+		if (credentials !== void 0) {
+			if (ref === void 0) return void 0;
+			return (await credentials.resolve(ref))?.value;
+		}
+		const ambient = launchEnvironmentOf(ctx).get(options.envName);
+		return ambient !== void 0 && ambient.value.length > 0 ? ambient.value : void 0;
+	};
+	const ambient = launchEnvironmentOf(ctx).get(options.envName);
+	const apiKeyState = { value: options.literal ?? ambient?.value ?? "" };
+	const refresh = async () => {
+		try {
+			apiKeyState.value = (await resolveApiKey()) ?? "";
+		} catch {
+			// a failed resolution keeps the previous snapshot; the next operation resolves again
+		}
+	};
+	void refresh();
+	ctx.on("credentials/reference-updated", () => void refresh());
+	return { resolveApiKey, apiKeyState };
+}
+/**
  * Keenable-backed `ctx.web` plugin. It registers a search provider and a fetch
  * provider into the web seam without owning the service; both share the same
- * credential resolution (key, or app title for the keyless endpoints).
+ * credential resolution (a literal key, the credentials service, or the launch
+ * environment — and an app title for the keyless endpoints).
  *
  * @module @customize/dsh-web-search-keenable
  */
@@ -293,7 +337,8 @@ const name = "web-search-keenable";
 /** The web seam this provider registers into. */
 const inject = ["web"];
 const Config = z.object({
-	apiKey: z.string(),
+	apiKey: z.string().role("secret"),
+	apiKeyEnv: z.string().role("credential-ref").default(KEENABLE_API_KEY_ENV),
 	baseURL: z.string(),
 	mode: z.union([
 		"pro",
@@ -312,10 +357,17 @@ const Config = z.object({
  * With a key both call the keyed endpoints; without one they call the keyless
  * public endpoints, which need `appTitle` (defaulting to
  * `$KEENABLE_APP_TITLE`, then a constant) for their `X-Keenable-Title` header.
+ * The key itself resolves per operation — a literal `apiKey` first, then the
+ * `KEENABLE_API_KEY` credential reference (credentials service, then launch
+ * environment) — so a key stored or changed after startup reaches the next
+ * call without a restart.
  */
 function apply(ctx, config) {
 	const shared = {
-		apiKey: config.apiKey ?? launchEnvironmentOf(ctx).get("KEENABLE_API_KEY")?.value ?? "",
+		...createApiKeyAccess(ctx, {
+			literal: config.apiKey !== void 0 && config.apiKey.length > 0 ? config.apiKey : void 0,
+			envName: config.apiKeyEnv ?? KEENABLE_API_KEY_ENV
+		}),
 		baseURL: config.baseURL ?? "https://api.keenable.ai",
 		appTitle: config.appTitle ?? launchEnvironmentOf(ctx).get("KEENABLE_APP_TITLE")?.value ?? "deepseek-harness"
 	};
