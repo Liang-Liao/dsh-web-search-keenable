@@ -53,6 +53,10 @@ kind: "package-reference"
 | `maxChars` | `50000` | 抓取内容最大字符数，作为 Keenable 的 `max_chars` 发送；更长内容会被截断 |
 | `live` | `true` | 从源站实时抓取页面（`live=true`），而非 Keenable 的索引副本。默认值与被替代的本地 HTTP 抓取器一致（始终读实时源）；索引副本对 Keenable 未收录的 URL 会直接失败 |
 
+### 热更新配置
+
+上表每个字段都是易变的（volatile）：对 profile 配置的修改在下一次调用即生效——loader 会把新值写入运行中的插件，而不是重启它——因此端点、模式与上限的变更不会中断会话。API 密钥同样按操作保持新鲜：配置字面量 `apiKey`、凭据服务的写入或 `apiKeyEnv` 的变更，都会在下一次调用前生效，无需重启。
+
 ### 搜索返回什么
 
 每个 Keenable 搜索结果映射为一个 `WebSearchSource`：`url`、`title`、`snippet` 与 `description` 中第一个非空内容作为 `snippet`、`published_at` 作为 `publishedAt`；两者都没有便携摘要的结果会被丢弃。请求的 `maxResults` 优先于配置的 `maxResults` 默认值，并作为成本与延迟优化发送给 Keenable——最终上限由服务在返回时截断并标记。Keenable 不返回生成的回答，因此结果不带 `content`。

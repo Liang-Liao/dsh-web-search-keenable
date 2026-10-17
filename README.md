@@ -53,6 +53,10 @@ Load the web service and the provider; the API key resolves through the `KEENABL
 | `maxChars` | `50000` | Maximum fetched content length in characters, sent as Keenable's `max_chars`; longer content is truncated |
 | `live` | `true` | Fetch the page live from the source (`live=true`) instead of Keenable's indexed copy. The default matches the local HTTP fetcher this provider replaces; the indexed copy fails for URLs Keenable has not indexed |
 
+### Live configuration
+
+Every field above is volatile: a change committed to the profile config takes effect on the next call — the loader writes it into the running plugin instead of restarting it — so endpoint, mode, and limit changes never interrupt a session. The same per-operation freshness covers the API key: a literal `apiKey`, a credentials-service write, or a change to `apiKeyEnv` reaches the next call without a restart.
+
 ### What a search returns
 
 Each Keenable result maps to a `WebSearchSource`: `url`, `title`, the first non-blank of `snippet` then `description` as `snippet`, and `published_at` as `publishedAt`; a result with neither field has no portable snippet and is dropped. A request's `maxResults` wins over the configured `maxResults` default and is sent to Keenable as a cost and latency optimization — the final bound is enforced by the service, which truncates and flags. Keenable returns no generated answer, so the result carries no `content`.
