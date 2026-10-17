@@ -284,11 +284,11 @@ window.__ModuleLoader__.load({
 					(0, react_jsx_runtime.jsxs)("div", {
 						className: "dshKeenableToggleRow",
 						children: [(0, react_jsx_runtime.jsx)("span", { children: t("live") }), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Switch, {
-							checked: (state.live.overridden ? state.live.text : String(state.defaults?.live ?? true)) === "true",
+							checked: state.live,
 							label: t("live"),
 							disabled,
 							onChange: (checked) => {
-								props.edit("live", checked ? "true" : "false");
+								props.setLive(checked);
 							}
 						})]
 					}),
@@ -325,12 +325,13 @@ window.__ModuleLoader__.load({
 		const API_KEY_FIELD = "apiKey";
 		/**
 		 * The Keenable settings card's staged form over the plugin's settings
-		 * namespace. The key is the one control that does not live in the
-		 * section: its literal never rides a response, so the card learns only
+		 * namespace. Two controls sit outside the plain text fields: the API
+		 * key, whose literal never rides a response — the card learns only
 		 * whether one is configured and writes it through the credentials
-		 * domain, addressed by the reference the section names. It is still
-		 * staged with the rest of the form, so one save covers everything the
-		 * card shows.
+		 * domain, addressed by the reference the section names — and the
+		 * live-fetch switch, a boolean whose position the card tracks beside
+		 * the form. Both are staged with the rest of the form, so one save
+		 * covers everything the card shows.
 		 */
 		var KeenableCardController = class {
 			scope;
@@ -340,6 +341,7 @@ window.__ModuleLoader__.load({
 			unsubscribe;
 			advancedOpen = false;
 			base = {};
+			liveDraft = void 0;
 			credential = {
 				ref: "",
 				configured: false,
@@ -375,7 +377,7 @@ window.__ModuleLoader__.load({
 					...this.form.shell(),
 					advancedOpen: this.advancedOpen,
 					defaults: this.base,
-					live: this.form.field("live"),
+					live: this.livePosition(),
 					apiKey: this.form.field(API_KEY_FIELD),
 					apiKeyConfigured: this.credential.configured,
 					apiKeyWritable: this.credential.writable
@@ -439,6 +441,30 @@ window.__ModuleLoader__.load({
 				this.advancedOpen = !this.advancedOpen;
 				this.store.set(this.projection());
 			}
+			/**
+			 * The live-fetch switch position: the staged draft while it differs
+			 * from the config, otherwise the value the section serves. It is
+			 * read from the scope rather than the form's text field — a boolean
+			 * rides the config as a boolean, and a text field cannot echo one
+			 * back, so the field's text goes stale the moment a save lands.
+			 */
+			livePosition() {
+				const effective = this.scope.getSnapshot().value?.live ?? true;
+				return this.liveDraft !== void 0 && this.liveDraft !== effective ? this.liveDraft : effective;
+			}
+			/**
+			 * Stage one switch position. A position equal to the inherited value
+			 * clears the override so the default keeps applying; anything else
+			 * stages the edit the form saves with the rest.
+			 * @param checked - the switch's new position.
+			 */
+			setLive(checked) {
+				const base = this.scope.getSnapshot().base;
+				if ((base?.live ?? true) === checked) this.form.actions().resetField("live");
+				else this.form.actions().edit("live", checked ? "true" : "false");
+				this.liveDraft = checked;
+				this.store.set(this.projection());
+			}
 			/** Build the face the slot registration injects. */
 			inject() {
 				return {
@@ -453,7 +479,11 @@ window.__ModuleLoader__.load({
 						this.save();
 					},
 					discard: () => {
+						this.liveDraft = void 0;
 						this.form.actions().discard();
+					},
+					setLive: (checked) => {
+						this.setLive(checked);
 					},
 					toggleAdvanced: () => {
 						this.toggleAdvanced();
