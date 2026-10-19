@@ -42,7 +42,7 @@ const KEENABLE_MAX_SNIPPET_LENGTH = 10000;
 /** Keenable's accepted `max_results` upper bound; the seam still caps on return. */
 const KEENABLE_MAX_RESULTS = 50;
 /** Attribution header sent on every request. */
-const USER_AGENT = "dsh-web-search-keenable/1.0.7";
+const USER_AGENT = "dsh-web-search-keenable/1.0.8";
 /** Launch-environment variable naming the Keenable API key credential. */
 const KEENABLE_API_KEY_ENV = "KEENABLE_API_KEY";
 /**
@@ -299,6 +299,10 @@ function clampResultCount(value) {
 function isAbortError(error) {
 	return error instanceof DOMException && error.name === "AbortError";
 }
+/** Resolve after `ms`; used only by the bounded credential seeding retry. */
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
 /**
  * Create the API-key access both providers share.
  *
@@ -306,10 +310,12 @@ function isAbortError(error) {
  * credentials service — the provider-managed store first, then ambient
  * fallbacks such as the process environment — or, when no credentials service
  * is mounted, straight from the launch environment. Resolution is
- * asynchronous, so a synchronous snapshot answers `available()`; it is seeded
- * once and refreshed whenever the credential or the config can have changed —
- * a committed credential write (`credentials/reference-updated`) or a
- * volatile-only config update (`loader/volatile-update`).
+ * asynchronous, so a synchronous snapshot answers `available()`; the `inject`
+ * list holds this fiber until the credentials plane is active, and the seed
+ * retries briefly as a guard, then the snapshot is refreshed whenever the
+ * credential or the config can have changed — a committed credential write
+ * (`credentials/reference-updated`) or a volatile-only config update
+ * (`loader/volatile-update`).
  *
  * @param ctx - plugin context supplying the credential and environment planes.
  * @param options - thunks reading the live literal key and the credential reference name.
@@ -337,7 +343,22 @@ function createApiKeyAccess(ctx, options) {
 			// a failed resolution keeps the previous snapshot; the next operation resolves again
 		}
 	};
-	void refresh();
+	// The `credentials` inject keeps this fiber PENDING until the plane is
+	// active, so the first pass below normally succeeds immediately; the
+	// bounded retry only covers a resolve that still fails transiently,
+	// because nothing re-seeds an empty snapshot afterwards.
+	void (async () => {
+		for (let attempt = 0; attempt < 50; attempt++) {
+			try {
+				const value = (await resolveApiKey()) ?? "";
+				apiKeyState.value = value;
+				if (value.length > 0) return;
+			} catch {
+				// a failed resolution keeps the previous snapshot; retry shortly
+			}
+			await sleep(100);
+		}
+	})();
 	ctx.on("credentials/reference-updated", () => void refresh());
 	ctx.on("loader/volatile-update", () => void refresh());
 	return { resolveApiKey, apiKeyState };
@@ -352,8 +373,15 @@ function createApiKeyAccess(ctx, options) {
  */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "web-search-keenable";
-/** The web seam this provider registers into. */
-const inject = ["web"];
+/**
+ * The web seam this provider registers into, plus the credentials plane.
+ * Declaring `credentials` makes Cordis hold this fiber PENDING until the
+ * credentials service is active — its `Service.init` awaits the store load —
+ * so `apply()` never races a not-yet-mounted credential plane. Compositions
+ * without a credentials service (e.g. the sdk-minimal template) keep this
+ * plugin unloaded instead of degrading to the launch environment.
+ */
+const inject = ["web", "credentials"];
 const Config = z.object({
 	apiKey: z.string().role("secret").volatile(),
 	apiKeyEnv: z.string().role("credential-ref").default(KEENABLE_API_KEY_ENV).volatile(),

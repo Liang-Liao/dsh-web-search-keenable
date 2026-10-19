@@ -18,9 +18,15 @@
 
 `@deepseek-ai/cordis`（`~4.0.5`）与 `@deepseek-ai/schemastery`（`~3.18.5`）跟随官方包同线。
 
+## 启动顺序：注入 credentials 平面（1.0.8 起）
+
+`index.js` 的 `inject` 是 `["web", "credentials"]`：凭据服务（`dsh-credentials-local`，其 `Service.init` 先 await 完存储文件加载才激活）就绪前，Cordis 让本插件 fiber 保持 PENDING，`apply()` 因此永远不会面对还没挂载的凭据平面——这是 1.0.8 的主修法。根因：只 inject `web` 时一次性密钥播种可能落在平面就绪之前，且 boot 后没有事件再刷新，快照永久为空；tinyfish 的 `available()` 直接门禁该快照，keenable 在 `appTitle` 显式置空时同样中招。`createApiKeyAccess` 的首次播种另带 50×100ms 有限重试作为二级保险（覆盖 resolve 意外 reject 的残余情况），拿到非空值即退出。
+
+接受的代价：不含凭据服务的组合（如 `sdk-minimal` 模板、精简自定义组合）中本插件将保持未加载，而不是退化到启动环境变量——插件本就静态导入 `@deepseek-ai/dsh-credentials` 并精确钉 peer，此类组合已在支持边界外；官方参照插件 `@deepseek-ai/dsh-web-search-deepseek` 刻意不注入（容忍无 seam），本次是刻意偏离。
+
 ## 配置热更新约定（1.0.4 起）
 
-全部 Config 字段标 `.volatile()`，provider 构造函数收 thunk、按操作经 `config.x.get()` 读取配置（对齐官方 `@deepseek-ai/dsh-web-search-deepseek`）：loader 对仅 volatile 字段的配置变更走热更新路径（提交进运行中的引用 + `loader/volatile-update` 事件），不重启插件 fiber，因此改配置无需重启 Harness。`createApiKeyAccess` 的密钥快照同时监听 `credentials/reference-updated` 与 `loader/volatile-update` 刷新，保证 `available()` 与最新配置一致。新增配置字段一律标 `.volatile()`；非 volatile 字段的变更仍会走普通重启路径。
+全部 Config 字段标 `.volatile()`，provider 构造函数收 thunk、按操作经 `config.x.get()` 读取配置（对齐官方 `@deepseek-ai/dsh-web-search-deepseek`）：loader 对仅 volatile 字段的配置变更走热更新路径（提交进运行中的引用 + `loader/volatile-update` 事件），不重启插件 fiber，因此改配置无需重启 Harness。`createApiKeyAccess` 的密钥快照在首次播种（inject 保证平面就绪 + 有限重试兜底，见上节）之后，持续监听 `credentials/reference-updated` 与 `loader/volatile-update` 刷新，保证 `available()` 与最新配置一致。新增配置字段一律标 `.volatile()`；非 volatile 字段的变更仍会走普通重启路径。
 
 ## 浏览器端（client 半，1.0.5 起）
 
