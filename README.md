@@ -1,128 +1,88 @@
----
-description: "The Keenable-backed search and fetch providers for ctx.web: how deployments mount vendor-native web search and markdown retrieval with portable snippets, publication dates, and a keyless public fallback."
-kind: "package-reference"
----
+# dsh-web-search-keenable
 
-# @customize/dsh-web-search-keenable
+一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）网页能力插件，以 `ctx.web` 提供方形式注册，结构和官方 `@deepseek-ai/dsh-web-search-exa` 一致，同时提供**搜索**和**抓取**两个能力。
 
-English | [中文](README.zh.md)
+> a dsh web-capability plugin registering a search and a fetch provider into the `ctx.web` seam, mirroring the shipped `@deepseek-ai/dsh-web-search-exa`.
 
-## Summary
+> **版本要求**：需要 dsh ≥ 0.2.1-rc.2——配置热更新（改配置不重启）与插件管理页内的配置面板都依赖该版本的 loader 与客户端组件。
 
-With `dsh-web-search-keenable`, the harness searches and reads the web through [Keenable](https://keenable.ai): ranked results with portable snippets and publication dates from `/v1/search`, and page content as markdown from `/v1/fetch`. Choose it when a deployment wants Keenable's `pro`/`realtime` retrieval — with an API key (a literal `apiKey`, the `KEENABLE_API_KEY` credential, or `$KEENABLE_API_KEY` in the launch environment) both call the keyed endpoints, and without one they transparently fall back to the keyless public endpoints. Keenable returns no generated answer, so search results carry no `content` — only citeable sources. A result with neither a non-blank `snippet` nor a non-blank `description` is dropped, so a call can return fewer sources than requested. The model-facing `web_search` and `web_fetch` tools live in `dsh-tool-web`.
+| 能力 | 后端 | 密钥 |
+|---|---|---|
+| `web_search` + `web_fetch` | Keenable `/v1/search`、`/v1/fetch` | 可无密钥（公共端点限流），有密钥更好：配置 `apiKey`、凭据服务或 `$KEENABLE_API_KEY` |
 
-## Table of Contents
+姊妹插件（TinyFish 后端）在独立仓库 [dsh-web-search-tinyfish](https://github.com/Liang-Liao/dsh-web-search-tinyfish)。两个插件互相独立、版本各自管理，可以只装其中一个，也可以两个都装。
 
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+## 安装
 
------
+命令里的 `--profile <name>` 决定插件装进哪个 profile：`web`（Web GUI）或 `desktop`（桌面客户端）。**两个 profile 互相独立**（各有各的 manifest 和 lockfile），装了 web 不会自动装到 desktop，需要的话两边分别执行。
 
-<a id="use-this-package"></a>
-## Use this package
+```powershell
+# web profile
+dsh plugin --profile web add github:Liang-Liao/dsh-web-search-keenable
 
-Mount the provider in a composition that already loads the web service; it registers the `keenable` search **and** fetch providers, so `ctx.web.search()` and `ctx.web.fetch()` resolve them when they are the only usable backends — or pin them with `searchProvider: keenable` and `fetchProvider: keenable`. This profile pins both, so Keenable fully replaces the local HTTP fetcher.
-
-### When to choose it
-
-Choose this backend when a deployment holds a Keenable API key and wants Keenable's ranked retrieval and markdown extraction under one credential. Both capabilities are keyless out of the box: without a key they call `/v1/search/public` and `/v1/fetch/public` (rate limited per IP, no credits), and with a key they call `/v1/search` and `/v1/fetch`. The key resolves per operation — a literal `apiKey` first, then the `KEENABLE_API_KEY` credential reference (credentials service, then launch environment) — so a key stored after startup reaches the next call without a restart. Either capability is unavailable — and every call fails with a structured error — when neither a key nor an application title is configured, or when the endpoint base does not parse.
-
-### Minimal configuration
-
-Load the web service and the provider; the API key resolves through the `KEENABLE_API_KEY` credential reference (credentials service first, then the launch environment), and all other settings have safe defaults.
-
-```yaml
-- name: '@deepseek-ai/dsh-web'
-- name: '@customize/dsh-web-search-keenable'
-  config:
-    apiKey: !!js process.env.KEENABLE_API_KEY
+# desktop profile
+dsh plugin --profile desktop add github:Liang-Liao/dsh-web-search-keenable
 ```
 
-| Field | Default | Meaning |
-|---|---|---|
-| `apiKey` | (unset) | Keenable API key; a non-empty literal wins over the credential reference. When no key resolves, the keyless public endpoints are used, which then require `appTitle` |
-| `apiKeyEnv` | `KEENABLE_API_KEY` | Name of the credential reference the API key resolves through when `apiKey` is unset — the credentials service first, then the launch environment |
-| `baseURL` | `https://api.keenable.ai` | Endpoint base; `/v1/search` or `/v1/fetch` (keyed) and their `/public` twins (keyless) are appended. An unparseable value makes both providers unavailable |
-| `mode` | `pro` | Search retrieval mode sent as Keenable's `mode`: `pro` (deeper retrieval) or `realtime` (fastest) |
-| `appTitle` | `$KEENABLE_APP_TITLE`, else `deepseek-harness` | Application name sent as the `X-Keenable-Title` header on keyless calls; Keenable rejects the public endpoints without it |
-| `site` | (unset) | Restrict search results to one site, sent as Keenable's `site` (e.g. `techcrunch.com`) |
-| `maxResults` | (unset) | Default search result count when a request carries no `maxResults`; Keenable accepts 1–50, and a larger value is clamped to 50 |
-| `snippetMaxLength` | (unset) | Maximum search snippet length in characters, sent as Keenable's `snippet_max_length`; must be between 180 and 10000 |
-| `maxChars` | `50000` | Maximum fetched content length in characters, sent as Keenable's `max_chars`; longer content is truncated |
-| `live` | `true` | Fetch the page live from the source (`live=true`) instead of Keenable's indexed copy. The default matches the local HTTP fetcher this provider replaces; the indexed copy fails for URLs Keenable has not indexed |
+`github:用户名/仓库名` 也可以写成完整仓库地址 `https://github.com/Liang-Liao/dsh-web-search-keenable`。
 
-### Live configuration
+## 升级
 
-Every field above is volatile: a change committed to the profile config takes effect on the next call — the loader writes it into the running plugin instead of restarting it — so endpoint, mode, and limit changes never interrupt a session. The same per-operation freshness covers the API key: a literal `apiKey`, a credentials-service write, or a change to `apiKeyEnv` reaches the next call without a restart.
+插件以分支 spec 安装，升级即让 pnpm 重新解析到仓库 main 的最新提交：
 
-### Configure in the Plugins page
+```powershell
+# 更新插件（web profile）
+dsh plugin --profile web update @customize/dsh-web-search-keenable
 
-Since 1.0.5 the bundle's row on the Plugins page carries a configure control — the row title opens the row's page. There the API key is managed through the credentials service (it is never written into the settings file), and every field in the table above except `apiKeyEnv` is editable: the everyday fields stay open, the less-used ones (`appTitle`, `site`, `snippetMaxLength`, `maxChars`) sit under a collapsed "Advanced settings" group, and each field shows its default in the hint, its override state, and a reset action. Saving writes the values into the profile config, and because every field is volatile the next call uses them without a restart. The control appears only while the plugin is loaded; `apiKeyEnv` remains a config-file field.
+# desktop profile 同理
+dsh plugin --profile desktop update @customize/dsh-web-search-keenable
+```
 
-### What a search returns
+web 与 desktop 需要各自执行升级。更新后的代码在**下次启动 Harness 时生效**。
 
-Each Keenable result maps to a `WebSearchSource`: `url`, `title`, the first non-blank of `snippet` then `description` as `snippet`, and `published_at` as `publishedAt`; a result with neither field has no portable snippet and is dropped. A request's `maxResults` wins over the configured `maxResults` default and is sent to Keenable as a cost and latency optimization — the final bound is enforced by the service, which truncates and flags. Keenable returns no generated answer, so the result carries no `content`.
+> **不要用重跑 `add` 的方式升级**：spec 未变化时 pnpm 会跳过重新解析，升级请用 `update`。固定到历史版本、tag 安装等进阶用法见 [AGENTS.md](AGENTS.md)。
 
-### What a fetch returns
+## 固定使用哪个提供方
 
-Each Keenable fetch maps to a `WebFetchResult`: the page as markdown under `body.kind: 'text'`, the envelope's `url` (falling back to the request URL), and `statusCode: 200`. Keenable's `max_chars` is a soft cap — it may return somewhat more than asked — so the provider slices `content` to `maxChars` itself and sets `truncated` only when it actually cut. The envelope carries no target-page status code, so an unreachable or unextractable page surfaces as a Keenable API error (`WEB_PROVIDER_ERROR`) rather than a non-200 result. Only http(s) request URLs reach the API; anything else fails locally as `WEB_INVALID_URL`.
+在 profile 的 `cordis.patch.yml` 中指定，搜索和抓取可以分别选择（混搭亦可）：
 
-### Failures and recovery
+```yaml
+- id: web
+  config:
+    searchProvider: keenable   # 或 tinyfish
+    fetchProvider: keenable    # 或 tinyfish
+```
 
-Provider failures — HTTP errors, network failures, unparseable or wrong-shape bodies — surface as `WebError` `WEB_PROVIDER_ERROR` with the response's `error`/`message` detail when present; an aborted request surfaces as `WEB_ABORTED`. HTTP redirects are rejected before the `Location` target is contacted and surface as `WEB_PROVIDER_ERROR`. Callers route on the code; the model-facing tools surface failures to the model under their own error wrappers.
+不指定的情况下，`ctx.web` 会自动选用各自能力下已注册且可用的提供方。
 
------
+## 配置热更新
 
-<a id="understand-the-implementation"></a>
-## Understand the implementation
+插件的全部配置字段都是易变的（volatile）：在 profile 配置中修改任意字段——端点、检索模式、数量上限、过滤条件、密钥引用等——**下一次调用即生效**，无需重启 Harness（loader 会把新值提交进运行中的插件，而不是重启它）。API 密钥按操作解析：配置字面量 `apiKey` → 凭据服务（`KEENABLE_API_KEY` 引用）→ 启动环境变量，任一提供均可。各字段完整说明见 [docs/PACKAGE.md](docs/PACKAGE.md)（英文）与 [docs/PACKAGE.zh.md](docs/PACKAGE.zh.md)（中文）。
 
-<details>
-<summary>Implementation internals — click to expand</summary>
+## 在插件管理页配置（1.0.5 起）
 
-This section explains the design decisions behind the providers; the observable behavior is fully covered in [Use this package](#use-this-package).
+本插件带浏览器端设置卡：插件管理页中对应 bundle 的**行标题即配置入口**，点击进入行的配置页——API 密钥经凭据服务管理（不写入设置文件），除 `apiKeyEnv` 外的全部字段均可编辑（提示文字标注默认值、覆盖状态与恢复默认；不常用字段收在默认折叠的“高级设置”组内），保存后下一次调用即生效。配置入口仅在插件加载后出现。
 
-### Design philosophy
+## 目录结构
 
-The package is a thin adapter over Keenable's API with three deliberate rules:
+```text
+.
+├── index.js            # 插件入口：配置模式、凭据解析、提供方注册，两个提供方的完整实现（单文件、无需构建）
+├── client.js           # 浏览器端设置卡（插件管理页配置入口，手写 __ModuleLoader__ factory，无构建步骤）
+├── cordis.patch.yml    # loader patch：向 web seam insert 本插件
+├── icon.svg
+├── locale/             # en.json / zh.json
+├── docs/
+│   ├── PACKAGE.md      # 包参考文档（英文）：配置字段与行为完整说明
+│   └── PACKAGE.zh.md   # 包参考文档（中文）
+├── AGENTS.md           # 开发与发布流程（面向开发者/编码代理）
+├── LICENSE             # MIT
+├── README.md           # 本文件：使用说明
+└── package.json        # 本仓库即一个 dsh bundle 包
+```
 
-- **Portable snippets only.** A source gains a `snippet` only from a real `snippet`/`description` field; inventing one from other fields would make the seam lie, so snippet-less results are dropped entirely.
-- **No invented answers.** Keenable returns no generated answer, so search `content` is omitted rather than fabricating provider prose the model might trust.
-- **Live by default for fetch.** The indexed copy is cheaper but fails on unindexed URLs; because this provider replaces the local live HTTP fetcher, `live` defaults to `true` and the cheaper path stays one config field away.
+纯 ESM、无构建步骤。
 
-### Source map
+## License
 
-| File | Role |
-|---|---|
-| `index.js` | Plugin entry: config schema, credential resolution, provider registration, and both providers in one build-free module |
-
-### Request and mapping flow
-
-`search()` posts the query, retrieval mode, and optional result count, snippet length, and site filter to the keyed or keyless operation with `redirect: 'error'`, so a redirect fails the request without contacting the target. `fetch()` GETs the keyed or keyless operation with the URL, `max_chars`, and `live` as query parameters. Both parsed envelopes are mapped field by field, and both classify an abort — a `DOMException` named `AbortError` — as `WEB_ABORTED`; anything else becomes `WEB_PROVIDER_ERROR`.
-
-</details>
-
------
-
-<a id="model-experience"></a>
-## Model Experience
-
-Indirectly, through `dsh-tool-web`: `web_search` retains this provider's `maxResults`-bounded URLs, titles, snippets, and publication dates or its exact `Keenable search aborted`, `Keenable search request failed: <error>`, and `Keenable returned an unprocessable response body: <error>` failures; `web_fetch` retains the page as markdown text or the fetch-flavored equivalents of the same failures.
-
-#### KV Cache effect
-
-No direct invalidation; the named consumers own any request-prefix changes.
-
-## Known Limitations and Deferred Work
-
-<a id="known-limitations-and-deferred-work"></a>
-
-These limits define when the provider is a poor fit. They are current package constraints.
-
-- **A search result with no non-blank `snippet` or `description` is dropped entirely** — there is no portable snippet to map, so fewer sources than requested can return.
-- **Fetch surface is a subset of the local fetcher** — no redirect following, byte caps, charset decoding, or private-address policy: Keenable performs the retrieval, so those checks belong to Keenable, and a non-200 origin page surfaces as a provider error rather than a status-coded result.
-- **Fetch truncation is provider-enforced** — `content` is sliced to `maxChars` because Keenable's `max_chars` is a soft cap; `truncated` is exact, not inferred.
-- **Only `mode`/`site`/`maxResults`/`snippetMaxLength`/`maxChars`/`live` are exposed** — Keenable's date filters (`published_after`, `acquired_before`, …), point-in-time `query_time`, and the fetch `prompt` extraction instruction wait on provider-neutral service fields in the web seam.
-- **The keyless public endpoints are a shared pool** — without an API key, calls are rate limited per IP (1,000 requests/hour, 10 requests/second) and carry no usage metadata; store `KEENABLE_API_KEY` for production volume.
-- **Abort classification is error-shape-based** — only a `DOMException` named `AbortError` maps to `WEB_ABORTED`; an abort carrying a custom reason (such as `dsh-timeout`'s `TimeoutReason`) surfaces as `WEB_PROVIDER_ERROR`.
+[MIT](LICENSE)

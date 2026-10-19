@@ -18,7 +18,8 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
-    "README.zh.md"
+    "docs/PACKAGE.md",
+    "docs/PACKAGE.zh.md"
   ],
   "icon": "./icon.svg",
   "license": "MIT",

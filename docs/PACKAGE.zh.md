@@ -5,7 +5,7 @@ kind: "package-reference"
 
 # @customize/dsh-web-search-keenable
 
-[English](README.md) | 中文
+[English](PACKAGE.md) | 中文
 
 ## 概述
 
