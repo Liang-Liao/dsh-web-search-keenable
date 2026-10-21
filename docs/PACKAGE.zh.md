@@ -3,7 +3,7 @@ description: "ctx.web 的 Keenable 搜索与抓取提供方：如何以厂商原
 kind: "package-reference"
 ---
 
-# @customize/dsh-web-search-keenable
+# @lliangworld/dsh-web-search-keenable
 
 [English](PACKAGE.md) | 中文
 
@@ -35,7 +35,7 @@ kind: "package-reference"
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
-- name: '@customize/dsh-web-search-keenable'
+- name: '@lliangworld/dsh-web-search-keenable'
   config:
     apiKey: !!js process.env.KEENABLE_API_KEY
 ```

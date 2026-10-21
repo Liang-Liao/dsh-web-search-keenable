@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "@customize/dsh-web-search-keenable",
+	id: "@lliangworld/dsh-web-search-keenable",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -204,7 +204,7 @@ window.__ModuleLoader__.load({
 		//#region lib/types/client/styles.js
 		/** Card-local styles: the live-fetch toggle row, its hint, and the advanced chevron. */
 		const css = ".dshKeenableToggleRow{color:var(--dsw-alias-label-primary);justify-content:space-between;align-items:center;gap:16px;font-size:13px;line-height:1.5;display:flex}.dshKeenableHint{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;line-height:1.5}.dshKeenableChevron{transition:transform .15s}.dshKeenableChevronOpen{transform:rotate(180deg)}";
-		const tagId = "@customize/dsh-web-search-keenable/KeenableCard.css";
+		const tagId = "@lliangworld/dsh-web-search-keenable/KeenableCard.css";
 		//#endregion
 		//#region lib/types/client/KeenableCard.js
 		/**
@@ -318,7 +318,7 @@ window.__ModuleLoader__.load({
 		/** Settings namespace this card edits: the plugin's own row. */
 		const NS = "web-search-keenable";
 		/** Row-configuration key: the bundle package name and the row its patch declares. */
-		const ROW_CONFIG_KEY = "@customize/dsh-web-search-keenable#web-search-keenable";
+		const ROW_CONFIG_KEY = "@lliangworld/dsh-web-search-keenable#web-search-keenable";
 		/** Credential reference the provider resolves when the config names none. */
 		const DEFAULT_API_KEY_REF = "KEENABLE_API_KEY";
 		/** Form field the credential control stages under. */
@@ -541,7 +541,7 @@ window.__ModuleLoader__.load({
 			ctx.effect(() => {
 				if (typeof document === "undefined" || document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") !== null) return () => {};
 				const tag = document.createElement("style");
-				tag.dataset.plugin = "@customize/dsh-web-search-keenable";
+				tag.dataset.plugin = "@lliangworld/dsh-web-search-keenable";
 				tag.dataset.pluginCss = tagId;
 				tag.textContent = css;
 				document.head.appendChild(tag);

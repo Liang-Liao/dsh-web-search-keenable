@@ -3,7 +3,7 @@ description: "The Keenable-backed search and fetch providers for ctx.web: how de
 kind: "package-reference"
 ---
 
-# @customize/dsh-web-search-keenable
+# @lliangworld/dsh-web-search-keenable
 
 English | [中文](PACKAGE.zh.md)
 
@@ -35,7 +35,7 @@ Load the web service and the provider; the API key resolves through the `KEENABL
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
-- name: '@customize/dsh-web-search-keenable'
+- name: '@lliangworld/dsh-web-search-keenable'
   config:
     apiKey: !!js process.env.KEENABLE_API_KEY
 ```

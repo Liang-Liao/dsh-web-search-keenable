@@ -10,7 +10,7 @@
 |---|---|---|
 | `web_search` + `web_fetch` | Keenable `/v1/search`、`/v1/fetch` | 可无密钥（公共端点限流），有密钥更好：配置 `apiKey`、凭据服务或 `$KEENABLE_API_KEY` |
 
-姊妹插件（TinyFish 后端）在独立仓库 [dsh-web-search-tinyfish](https://github.com/Liang-Liao/dsh-web-search-tinyfish)。两个插件互相独立、版本各自管理，可以只装其中一个，也可以两个都装。
+姊妹插件（TinyFish 后端）在独立仓库 [dsh-web-search-tinyfish](https://github.com/lliangworld/dsh-web-search-tinyfish)。两个插件互相独立、版本各自管理，可以只装其中一个，也可以两个都装。
 
 ## 安装
 
@@ -18,13 +18,13 @@
 
 ```powershell
 # web profile
-dsh plugin --profile web add github:Liang-Liao/dsh-web-search-keenable
+dsh plugin --profile web add github:lliangworld/dsh-web-search-keenable
 
 # desktop profile
-dsh plugin --profile desktop add github:Liang-Liao/dsh-web-search-keenable
+dsh plugin --profile desktop add github:lliangworld/dsh-web-search-keenable
 ```
 
-`github:用户名/仓库名` 也可以写成完整仓库地址 `https://github.com/Liang-Liao/dsh-web-search-keenable`。
+`github:用户名/仓库名` 也可以写成完整仓库地址 `https://github.com/lliangworld/dsh-web-search-keenable`。
 
 ## 升级
 
@@ -32,10 +32,10 @@ dsh plugin --profile desktop add github:Liang-Liao/dsh-web-search-keenable
 
 ```powershell
 # 更新插件（web profile）
-dsh plugin --profile web update @customize/dsh-web-search-keenable
+dsh plugin --profile web update @lliangworld/dsh-web-search-keenable
 
 # desktop profile 同理
-dsh plugin --profile desktop update @customize/dsh-web-search-keenable
+dsh plugin --profile desktop update @lliangworld/dsh-web-search-keenable
 ```
 
 web 与 desktop 需要各自执行升级。更新后的代码在**下次启动 Harness 时生效**。

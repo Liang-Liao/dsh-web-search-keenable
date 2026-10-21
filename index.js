@@ -9,7 +9,7 @@ import { WebError } from "@deepseek-ai/dsh-web";
  * `description` to `snippet`, maps `published_at` to `publishedAt`, drops
  * entries without a portable snippet, and omits `content` because Keenable
  * returns no generated answer.
- * @module @customize/dsh-web-search-keenable/provider
+ * @module @lliangworld/dsh-web-search-keenable/provider
  */
 /** Stable id this provider registers under. */
 const KEENABLE_PROVIDER_ID = "keenable";
@@ -369,7 +369,7 @@ function createApiKeyAccess(ctx, options) {
  * credential resolution (a literal key, the credentials service, or the launch
  * environment — and an app title for the keyless endpoints).
  *
- * @module @customize/dsh-web-search-keenable
+ * @module @lliangworld/dsh-web-search-keenable
  */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "web-search-keenable";

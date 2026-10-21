@@ -4,7 +4,7 @@
 
 ## 仓库结构
 
-- 本仓库**即一个 dsh bundle 包**（`@customize/dsh-web-search-keenable`）：根 `package.json` 就是插件 manifest，无构建步骤，纯 ESM。2026-10 从 monorepo [dsh-customize-search](https://github.com/lliangworld/dsh-customize-search) 拆出，该插件子目录的提交历史经 `git subtree split` 完整保留在本仓库。
+- 本仓库**即一个 dsh bundle 包**（`@lliangworld/dsh-web-search-keenable`）：根 `package.json` 就是插件 manifest，无构建步骤，纯 ESM。2026-10 从 monorepo [dsh-customize-search](https://github.com/lliangworld/dsh-customize-search) 拆出，该插件子目录的提交历史经 `git subtree split` 完整保留在本仓库。
 - `index.js`：插件入口——Config schema、密钥解析、provider 注册，以及 search/fetch 两个 provider 的完整实现（单文件）。
 - `client.js`：浏览器端设置卡（插件管理页配置入口），手写 `window.__ModuleLoader__.load` factory，无构建步骤。
 - `cordis.patch.yml`：loader patch，向 `web` seam insert 本插件（row id `web-search-keenable`）。
@@ -32,7 +32,7 @@
 
 `client.js` 在插件管理页对应 bundle 的行上提供配置入口：
 
-- 行键为 `<包名>#<row id>`（本插件为 `@customize/dsh-web-search-keenable#web-search-keenable`），经 `ctx.slots.register` 注册进 `plugins.row.config` 键控槽；`ctx.configForms.whileServed([ns])` 门控——插件未加载（行禁用）时入口自动消失，ns 即 patch row id。
+- 行键为 `<包名>#<row id>`（本插件为 `@lliangworld/dsh-web-search-keenable#web-search-keenable`），经 `ctx.slots.register` 注册进 `plugins.row.config` 键控槽；`ctx.configForms.whileServed([ns])` 门控——插件未加载（行禁用）时入口自动消失，ns 即 patch row id。
 - 表单用 `@deepseek-ai/dsh-client-ui-primitives` 的 `SettingsForm`/`SettingsValueField`/`SettingsSecretField`/`Switch` 与 `SettingsFormModel`；`react/jsx-runtime`、primitives、`@deepseek-ai/dsh-client-store` 是浏览器基线模块，factory 内直接 require，无需声明。`package.json` 的 `dsh.client.inject` 声明 locale、ui-settings、ui-plugin-manager、api-remotes 四个包，`exports["./client"]` 指向 `client.js`，且 `client.js` 必须在 `files` 中随包分发。
 - 密钥不进入配置文件：经 `ctx.remote.credentials` 对 `apiKeyEnv` 命名的引用（`KEENABLE_API_KEY`）describe/set（官方设置页同款）；卡片监听 `credentials/reference-updated` 防竞态刷新。
 - 字段分两组：常用字段直接展示，不常用字段（`appTitle`、`site`、`snippetMaxLength`、`maxChars`）收在默认折叠的"高级设置"组内。折叠状态放 controller 的 store（`advancedOpen` + inject 面的 `toggleAdvanced`），**不要用 React hook**（factory 只保证 `react/jsx-runtime` 在基线表里）；`hooks: { keenableCard }` 注入后 prop 名是 `props.useKeenableCard`（写错会在渲染期静默崩溃，控制台报 `props.useXxx is not a function`）。
@@ -47,7 +47,7 @@
 3. 更新本地安装的插件——**直接重跑 `add` 安装命令无效**：pnpm 发现 profile 的 lockfile 中该 spec 未变化时会跳过重新解析，会话内插件管理器随后报 `ambiguous-install`。用 `update` 让分支 spec 重新解析到 main 最新提交（manifest 中的 spec 保持不变，以后仍可用同样方式继续更新）：
 
 ```powershell
-dsh plugin --profile web update @customize/dsh-web-search-keenable
+dsh plugin --profile web update @lliangworld/dsh-web-search-keenable
 ```
 
 不带包名的 `dsh plugin --profile web update` 会重解析全部依赖。更新后的代码在**下次启动 Harness 时生效**。

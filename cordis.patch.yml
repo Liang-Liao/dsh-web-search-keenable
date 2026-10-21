@@ -3,4 +3,4 @@
 # the only usable search backend — or pin it with `searchProvider: keenable`.
 - insert:
     - id: web-search-keenable
-      name: '@customize/dsh-web-search-keenable'
+      name: '@lliangworld/dsh-web-search-keenable'
