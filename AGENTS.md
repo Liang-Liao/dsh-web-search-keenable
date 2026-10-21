@@ -4,7 +4,7 @@
 
 ## 仓库结构
 
-- 本仓库**即一个 dsh bundle 包**（`@customize/dsh-web-search-keenable`）：根 `package.json` 就是插件 manifest，无构建步骤，纯 ESM。2026-10 从 monorepo [dsh-customize-search](https://github.com/Liang-Liao/dsh-customize-search) 拆出，该插件子目录的提交历史经 `git subtree split` 完整保留在本仓库。
+- 本仓库**即一个 dsh bundle 包**（`@customize/dsh-web-search-keenable`）：根 `package.json` 就是插件 manifest，无构建步骤，纯 ESM。2026-10 从 monorepo [dsh-customize-search](https://github.com/lliangworld/dsh-customize-search) 拆出，该插件子目录的提交历史经 `git subtree split` 完整保留在本仓库。
 - `index.js`：插件入口——Config schema、密钥解析、provider 注册，以及 search/fetch 两个 provider 的完整实现（单文件）。
 - `client.js`：浏览器端设置卡（插件管理页配置入口），手写 `window.__ModuleLoader__.load` factory，无构建步骤。
 - `cordis.patch.yml`：loader patch，向 `web` seam insert 本插件（row id `web-search-keenable`）。
@@ -56,7 +56,7 @@ dsh plugin --profile web update @customize/dsh-web-search-keenable
 
 ## 版本管理
 
-本仓库版本与姊妹仓库 [dsh-web-search-tinyfish](https://github.com/Liang-Liao/dsh-web-search-tinyfish) **完全独立**：`package.json` 的 `version` 只在本仓库演进，发版只打本仓库的 tag，互不影响。拆分时两仓库均从 `1.0.7` 起（承接拆分前 monorepo 的末版）。
+本仓库版本与姊妹仓库 [dsh-web-search-tinyfish](https://github.com/lliangworld/dsh-web-search-tinyfish) **完全独立**：`package.json` 的 `version` 只在本仓库演进，发版只打本仓库的 tag，互不影响。拆分时两仓库均从 `1.0.7` 起（承接拆分前 monorepo 的末版）。
 
 发版即 bump `package.json` 版本 → commit/push → 打 `v*` tag 推送：
 
@@ -71,7 +71,7 @@ git push origin v1.0.8
 
 ```powershell
 # 固定到某个提交
-dsh plugin --profile web add "github:Liang-Liao/dsh-web-search-keenable#b29e678b28fd4081913a514c451a894f732705db"
+dsh plugin --profile web add "github:lliangworld/dsh-web-search-keenable#b29e678b28fd4081913a514c451a894f732705db"
 ```
 
 这种形式会把 profile manifest 里的 spec 改成指定提交并强制 pnpm 解析过去；此后 spec 固定，`update` 不会跟随 main 前进；解除固定则重新 `add` 分支 spec。
@@ -80,10 +80,10 @@ tag 发版后可用两种形式（同样注意引号）：
 
 ```powershell
 # 固定 tag：update 永远停在该 tag 指向的版本；升级需打新 tag 后重新 add
-dsh plugin --profile web add "github:Liang-Liao/dsh-web-search-keenable#v1.0.7"
+dsh plugin --profile web add "github:lliangworld/dsh-web-search-keenable#v1.0.7"
 
 # semver 范围：以后打了新 tag（如 v1.0.8），update 会自动升到匹配范围的最新 tag，不跟随 main 上未发版的提交
-dsh plugin --profile web add "github:Liang-Liao/dsh-web-search-keenable#semver:^1.0.7"
+dsh plugin --profile web add "github:lliangworld/dsh-web-search-keenable#semver:^1.0.7"
 ```
 
 想"跟随发版"推荐 semver 形式：每次发版只需打 tag 推送，本地跑 `update` 即可升级。本仓库是单包仓库，`#semver:` 按本仓库的 `v*` tag 线生效，即按本插件独立发版，不再需要子目录前缀 tag。
