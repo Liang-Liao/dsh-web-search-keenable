@@ -12,9 +12,9 @@
 
 ## 版本兼容性约定
 
-`peerDependencies` 对 `@deepseek-ai/dsh-web` 和 `@deepseek-ai/dsh-launch-environment` 使用 `>=0.2.1-rc.2` 下限范围（1.0.6 起从 `>=0.2.0-rc.1` 收紧）而非官方包的精确钉版本——保留 dsh 升级（如 0.2.1-rc.2 → 0.2.2-rc.1）不会因 peer 不满足而被静默跳过的好处，同时下限如实反映真实需求：1.0.4 的 volatile 热更新与 1.0.5 的 client 半（`plugins.row.config` 槽、`configForms`、settings primitives）都只在 0.2.1-rc.x 存在，官方参照插件 `@deepseek-ai/dsh-web-search-deepseek`（同样的 volatile + `ctx.web` + credentials 组合）钉的也正是 `0.2.1-rc.2`。若追求与官方完全一致的安全姿态，可改回精确钉法，但每次 dsh 升级都需要发版。
+`peerDependencies` 对三个 dsh peer（`@deepseek-ai/dsh-web`、`@deepseek-ai/dsh-launch-environment`、`@deepseek-ai/dsh-credentials`）统一使用 `>=0.2.1-rc.2` 下限范围（前两个自 1.0.6 起从 `>=0.2.0-rc.1` 收紧；credentials 自 1.0.10 起由精确钉 `0.2.1-rc.2` 放宽）而非官方包的精确钉版本——保留 dsh 升级（如 0.2.1-rc.2 → 0.2.1-rc.3）不会因 peer 不满足而被静默跳过的好处，同时下限如实反映真实需求：1.0.4 的 volatile 热更新与 1.0.5 的 client 半（`plugins.row.config` 槽、`configForms`、settings primitives）都只在 0.2.1-rc.x 存在，官方参照插件 `@deepseek-ai/dsh-web-search-deepseek`（同样的 volatile + `ctx.web` + credentials 组合）钉的也正是 `0.2.1-rc.2`。若追求与官方完全一致的安全姿态，可改回精确钉法，但每次 dsh 升级都需要发版。
 
-例外中的例外：`@deepseek-ai/dsh-credentials` 精确钉 `0.2.1-rc.2`——插件静态导入该包，宽松范围会让不含此包的 dsh 版本在导入时硬失败，而不是干净地跳过插件。官方包同版本发布，因此这个精确钉实际上已把插件门禁在 dsh 0.2.1-rc.2+，另外两个 peer 的宽松下限此前并无实际意义。dsh 升级时需要同步 bump 这个 peer 并发版。
+credentials 的放宽取舍（1.0.10 起）：该包被 `index.js` 第 1 行静态导入，旧版精确钉 `0.2.1-rc.2` 会在 dsh 补丁升级（如 0.2.1-rc.3）时把插件整体门禁在旧运行时上（报 `incompatible-version`、patch 行全部不加载），每次跟版都要发版；放宽为 `>=0.2.1-rc.2` 后下限仍如实声明依赖。残余取舍：若未来某 dsh 构建完全不含该包，版本门禁对"包缺失"的处理决定插件是被干净跳过还是加载后静态导入硬失败，此为接受的风险。官方包同线发布，实践中该下限与另两个 peer 等效。
 
 `@deepseek-ai/cordis`（`~4.0.5`）与 `@deepseek-ai/schemastery`（`~3.18.5`）跟随官方包同线。
 
@@ -22,7 +22,7 @@
 
 `index.js` 的 `inject` 是 `["web", "credentials"]`：凭据服务（`dsh-credentials-local`，其 `Service.init` 先 await 完存储文件加载才激活）就绪前，Cordis 让本插件 fiber 保持 PENDING，`apply()` 因此永远不会面对还没挂载的凭据平面——这是 1.0.8 的主修法。根因：只 inject `web` 时一次性密钥播种可能落在平面就绪之前，且 boot 后没有事件再刷新，快照永久为空；tinyfish 的 `available()` 直接门禁该快照，keenable 在 `appTitle` 显式置空时同样中招。`createApiKeyAccess` 的首次播种另带 50×100ms 有限重试作为二级保险（覆盖 resolve 意外 reject 的残余情况），拿到非空值即退出。
 
-接受的代价：不含凭据服务的组合（如 `sdk-minimal` 模板、精简自定义组合）中本插件将保持未加载，而不是退化到启动环境变量——插件本就静态导入 `@deepseek-ai/dsh-credentials` 并精确钉 peer，此类组合已在支持边界外；官方参照插件 `@deepseek-ai/dsh-web-search-deepseek` 刻意不注入（容忍无 seam），本次是刻意偏离。
+接受的代价：不含凭据服务的组合（如 `sdk-minimal` 模板、精简自定义组合）中本插件将保持未加载，而不是退化到启动环境变量——插件本就静态导入 `@deepseek-ai/dsh-credentials` 并以下限 peer 声明依赖，此类组合已在支持边界外；官方参照插件 `@deepseek-ai/dsh-web-search-deepseek` 刻意不注入（容忍无 seam），本次是刻意偏离。
 
 ## 配置热更新约定（1.0.4 起）
 
